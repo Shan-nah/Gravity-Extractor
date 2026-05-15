@@ -213,71 +213,112 @@ app.get('/api/extract-upload', async (req, res) => {
 
 // ─── Scraper ──────────────────────────────────────────────────────────────────
 
-async function scrapeTenderPage(url) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-blink-features=AutomationControlled',
-    ],
-  });
+function extractLinksFromHtml(html, baseUrl) {
+  const seen = new Set();
+  const results = [];
+  const base = new URL(baseUrl);
 
-  try {
-    const page = await browser.newPage();
+  const linkRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = linkRe.exec(html)) !== null) {
+    let href = m[1].trim();
+    const text = m[2].replace(/<[^>]+>/g, '').trim();
+    try { href = new URL(href, base).href; } catch { continue; }
+    if (seen.has(href)) continue;
 
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    );
-    await page.setExtraHTTPHeaders({
+    const isDoc =
+      /\.(pdf|doc|docx|xls|xlsx|zip|rar|7z)(\?.*)?$/i.test(href) ||
+      /\/(download|document|attachment|file|bid|tender.?doc)/i.test(href) ||
+      /download/i.test(text) ||
+      /tender.?doc/i.test(text) ||
+      /corrigendum/i.test(text) ||
+      /notice.?inviting/i.test(text);
+
+    if (isDoc) { seen.add(href); results.push({ url: href, text }); }
+  }
+  return results;
+}
+
+async function scrapeTenderPageAxios(url) {
+  console.log('  [Scraper] Using axios fallback…');
+  const response = await axios.get(url, {
+    timeout: 30000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+  });
+  const html = response.data;
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const pageTitle = titleMatch ? titleMatch[1].trim() : '';
+  const pageText = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+                       .replace(/<style[\s\S]*?<\/style>/gi, '')
+                       .replace(/<[^>]+>/g, ' ')
+                       .replace(/\s+/g, ' ').trim();
+  const documentLinks = extractLinksFromHtml(html, url);
+  return { pageText, documentLinks, pageTitle };
+}
+
+async function scrapeTenderPage(url) {
+  try {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-blink-features=AutomationControlled',
+      ],
     });
 
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const type = req.resourceType();
-      if (['image', 'media', 'font', 'stylesheet'].includes(type)) req.abort();
-      else req.continue();
-    });
-
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 90000 });
-    await new Promise(r => setTimeout(r, 4000));
-
-    const pageTitle = await page.title();
-    const pageText = await page.evaluate(() => document.body.innerText || document.body.textContent || '');
-
-    const documentLinks = await page.evaluate(() => {
-      const seen = new Set();
-      const results = [];
-
-      document.querySelectorAll('a[href]').forEach((a) => {
-        const href = a.href;
-        const text = (a.textContent || '').trim();
-        if (!href || seen.has(href)) return;
-
-        const isDoc =
-          /\.(pdf|doc|docx|xls|xlsx|zip|rar|7z)(\?.*)?$/i.test(href) ||
-          /\/(download|document|attachment|file|bid|tender.?doc)/i.test(href) ||
-          /download/i.test(text) ||
-          /tender.?doc/i.test(text) ||
-          /corrigendum/i.test(text) ||
-          /notice.?inviting/i.test(text);
-
-        if (isDoc) {
-          seen.add(href);
-          results.push({ url: href, text });
-        }
+    try {
+      const page = await browser.newPage();
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      );
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'en-US,en;q=0.9',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      });
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        if (['image', 'media', 'font', 'stylesheet'].includes(req.resourceType())) req.abort();
+        else req.continue();
       });
 
-      return results;
-    });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await new Promise(r => setTimeout(r, 2000));
 
-    return { pageText, documentLinks, pageTitle };
-  } finally {
-    await browser.close();
+      const pageTitle = await page.title();
+      const pageText = await page.evaluate(() => document.body.innerText || document.body.textContent || '');
+      const documentLinks = await page.evaluate(() => {
+        const seen = new Set();
+        const results = [];
+        document.querySelectorAll('a[href]').forEach((a) => {
+          const href = a.href;
+          const text = (a.textContent || '').trim();
+          if (!href || seen.has(href)) return;
+          const isDoc =
+            /\.(pdf|doc|docx|xls|xlsx|zip|rar|7z)(\?.*)?$/i.test(href) ||
+            /\/(download|document|attachment|file|bid|tender.?doc)/i.test(href) ||
+            /download/i.test(text) || /tender.?doc/i.test(text) ||
+            /corrigendum/i.test(text) || /notice.?inviting/i.test(text);
+          if (isDoc) { seen.add(href); results.push({ url: href, text }); }
+        });
+        return results;
+      });
+
+      return { pageText, documentLinks, pageTitle };
+    } finally {
+      await browser.close();
+    }
+  } catch (err) {
+    console.warn(`  [Scraper] Puppeteer failed (${err.message}) — falling back to axios…`);
+    return await scrapeTenderPageAxios(url);
   }
 }
 
