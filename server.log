@@ -1,0 +1,28 @@
+
+  Gravity Extractor
+  ➜  http://localhost:5001
+  Press Ctrl+C to stop
+
+  ✓ downloaded: 995dfdb8-e2af-44c1-819c-843530009586?FileName=995dfdb8-e2af-44c1-819c-843530009586.html
+  ✓ downloaded: 995dfdb8-e2af-44c1-819c-843530009586?FileName=BOQ_982402.xls
+  ✓ downloaded: 995dfdb8-e2af-44c1-819c-843530009586?FileName=LegacyWasteBidDocsCluster4.pdf
+  ✓ downloaded: 995dfdb8-e2af-44c1-819c-843530009586?FileName=Tendernotice_1%20(14).pdf
+Warning: Ignoring invalid character "115" in hex string
+Warning: Ignoring invalid character "116" in hex string
+Warning: Ignoring invalid character "121" in hex string
+Warning: Ignoring invalid character "108" in hex string
+Warning: Ignoring invalid character "115" in hex string
+Warning: Ignoring invalid character "116" in hex string
+Warning: Ignoring invalid character "121" in hex string
+Warning: Ignoring invalid character "108" in hex string
+Warning: Indexing all PDF objects
+  text-extract fail (/var/folders/v7/hgj_l9x555j4tyjtlbswd4900000gn/T/gravity_1778737836553/doc_1778737836975_z5qj1.pdf): Invalid PDF structure
+Warning: Indexing all PDF objects
+  text-extract fail (/var/folders/v7/hgj_l9x555j4tyjtlbswd4900000gn/T/gravity_1778737836553/doc_1778737838220_frcoa.pdf): Invalid PDF structure
+Warning: TT: undefined function: 32
+Warning: TT: undefined function: 32
+  [Groq] Analysing web page…
+  [Groq] Waiting 32s before next call (rate limit)…
+  [Groq] Analysing document 1/1: Download…
+  [Groq] Waiting 32s before synthesis call…
+  [Groq] Synthesising final report…

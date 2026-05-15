@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gravity Extractor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1a365d;
+      --blue: #2b6cb0;
+      --sky: #ebf8ff;
+      --green: #276749;
+      --green-bg: #f0fff4;
+      --red: #c53030;
+      --red-bg: #fff5f5;
+      --gray: #718096;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f7fafc;
+      color: #2d3748;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--navy);
+      padding: 0 2rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    header svg { flex-shrink: 0; }
+    header h1 { color: #fff; font-size: 1.35rem; font-weight: 700; letter-spacing: .4px; }
+    header span { color: #90cdf4; font-size: .85rem; margin-left: auto; }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 100%;
+      max-width: 680px;
+      padding: 2.2rem 2.4rem;
+    }
+
+    /* ─── Tabs ─── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 1.8rem;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: .65rem 1rem;
+      font-size: .88rem;
+      font-weight: 600;
+      background: #f7fafc;
+      border: none;
+      cursor: pointer;
+      color: var(--gray);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: background .18s, color .18s;
+    }
+    .tab-btn:first-child { border-right: 1.5px solid var(--border); }
+    .tab-btn.active {
+      background: var(--navy);
+      color: #fff;
+    }
+    .tab-btn:not(.active):hover { background: #edf2f7; color: var(--navy); }
+
+    /* ─── Form fields ─── */
+    label { display: block; font-size: .85rem; font-weight: 600; color: #4a5568; margin-bottom: 6px; }
+    .field { margin-bottom: 1.2rem; }
+    .hint { font-size: .78rem; color: var(--gray); margin-top: 5px; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: .65rem .95rem;
+      font-size: .95rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      color: #2d3748;
+      background: #fff;
+    }
+    input[type="text"]:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(43,108,176,.15);
+    }
+
+    /* ─── Drop zone ─── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: #f7fafc;
+      position: relative;
+    }
+    .drop-zone.dragover {
+      border-color: var(--blue);
+      background: var(--sky);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    .drop-zone-icon { color: var(--blue); margin-bottom: .7rem; }
+    .drop-zone p { font-size: .9rem; color: #4a5568; font-weight: 500; }
+    .drop-zone small { font-size: .78rem; color: var(--gray); margin-top: 4px; display: block; }
+
+    .file-list {
+      margin-top: .8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .file-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: .45rem .7rem;
+      background: var(--sky);
+      border: 1px solid #bee3f8;
+      border-radius: 6px;
+      font-size: .82rem;
+      color: var(--navy);
+    }
+    .file-chip svg { flex-shrink: 0; color: var(--blue); }
+    .file-chip span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-chip button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--gray);
+      padding: 0 2px;
+      font-size: .95rem;
+      line-height: 1;
+    }
+    .file-chip button:hover { color: var(--red); }
+
+    /* ─── Submit button ─── */
+    .btn-extract {
+      width: 100%;
+      padding: .8rem;
+      background: var(--navy);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: .3px;
+      transition: background .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: .4rem;
+    }
+    .btn-extract:hover:not(:disabled) { background: #2c4a7c; }
+    .btn-extract:active:not(:disabled) { transform: scale(.99); }
+    .btn-extract:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* ─── Progress ─── */
+    #progress-section { display: none; margin-top: 1.8rem; }
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: .7rem .9rem;
+      border-radius: 8px;
+      background: #f7fafc;
+      border: 1px solid var(--border);
+      transition: all .3s;
+    }
+    .step.active { background: var(--sky); border-color: #bee3f8; }
+    .step.done   { background: var(--green-bg); border-color: #c6f6d5; }
+    .step.error  { background: var(--red-bg); border-color: #fed7d7; }
+
+    .step-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: .75rem; font-weight: 700;
+      color: var(--gray);
+      transition: all .3s;
+    }
+    .step.active .step-icon { background: var(--blue); color: #fff; }
+    .step.done   .step-icon { background: var(--green); color: #fff; }
+    .step.error  .step-icon { background: var(--red); color: #fff; }
+
+    .step-text { flex: 1; }
+    .step-label { font-size: .82rem; font-weight: 600; color: #4a5568; }
+    .step.active .step-label { color: var(--blue); }
+    .step.done   .step-label { color: var(--green); }
+    .step-msg { font-size: .8rem; color: var(--gray); margin-top: 2px; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Result ─── */
+    #result-section { display: none; margin-top: 1.8rem; }
+    .result-box {
+      background: var(--green-bg);
+      border: 1.5px solid #c6f6d5;
+      border-radius: 10px;
+      padding: 1.4rem;
+      text-align: center;
+    }
+    .result-box p { color: var(--green); font-weight: 700; font-size: 1rem; margin-bottom: 1rem; }
+    .result-box small { display: block; color: var(--gray); font-size: .8rem; margin-bottom: 1.1rem; }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: .72rem 1.6rem;
+      background: var(--green);
+      color: #fff;
+      font-size: .95rem;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background .2s;
+    }
+    .btn-download:hover { background: #1f5538; }
+
+    /* ─── Error ─── */
+    #error-section { display: none; margin-top: 1.4rem; }
+    .error-box {
+      background: var(--red-bg);
+      border: 1.5px solid #fed7d7;
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      color: var(--red);
+      font-size: .88rem;
+    }
+    .error-box strong { display: block; margin-bottom: 4px; }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: .78rem;
+      color: var(--gray);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="14" fill="#2b6cb0"/>
+    <path d="M10 22 L16 10 L22 22" stroke="white" stroke-width="2.2" stroke-linejoin="round" fill="none"/>
+    <line x1="12" y1="18" x2="20" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <h1>Gravity Extractor</h1>
+  <span>Tender Intelligence Platform</span>
+</header>
+
+<main>
+  <div class="card">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-url" onclick="switchTab('url')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        Analyse from URL
+      </button>
+      <button class="tab-btn" id="tab-upload" onclick="switchTab('upload')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Upload Document
+      </button>
+    </div>
+
+    <!-- Shared optional API key field -->
+    <div class="field" id="apiKeyField">
+      <label for="geminiKey">Gemini API Key <span style="font-weight:400;color:var(--gray)">(optional — leave blank to use default)</span></label>
+      <input type="text" id="geminiKey" placeholder="AIza…" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <!-- URL form -->
+    <form id="urlForm">
+      <div class="field">
+        <label for="tenderUrl">Tender URL</label>
+        <input
+          type="text"
+          id="tenderUrl"
+          placeholder="https://www.tenderdetail.com/…"
+          value="https://www.tenderdetail.com/Indian-Tenders/TenderNotice/55417799/01563785-8D70-4B98-9C8E-1AA25E9DAA3C/101978/50824692/d24d3021-bf18-404b-af8d-e66137a47f49"
+        />
+        <p class="hint">Paste the full tender page URL — attached documents are scraped automatically.</p>
+      </div>
+      <button type="submit" class="btn-extract" id="urlSubmitBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Analyse Tender
+      </button>
+    </form>
+
+    <!-- Upload form -->
+    <form id="uploadForm" style="display:none">
+      <div class="field">
+        <label>Upload Tender Document(s)</label>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.zip" />
+          <div class="drop-zone-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <p>Drop files here or click to browse</p>
+          <small>PDF, DOC, DOCX, XLS, XLSX, ZIP — up to 50 MB each</small>
+        </div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+      <button type="submit" class="btn-extract" id="uploadSubmitBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Analyse Document
+      </button>
+    </form>
+
+    <!-- Progress -->
+    <div id="progress-section">
+      <div class="steps">
+        <div class="step" id="step-1">
+          <div class="step-icon">1</div>
+          <div class="step-text">
+            <div class="step-label" id="label-1">Scraping Tender Page</div>
+            <div class="step-msg" id="msg-1">Waiting…</div>
+          </div>
+        </div>
+        <div class="step" id="step-2">
+          <div class="step-icon">2</div>
+          <div class="step-text">
+            <div class="step-label" id="label-2">Downloading Documents</div>
+            <div class="step-msg" id="msg-2">Waiting…</div>
+          </div>
+        </div>
+        <div class="step" id="step-3">
+          <div class="step-icon">3</div>
+          <div class="step-text">
+            <div class="step-label" id="label-3">Extracting Document Text</div>
+            <div class="step-msg" id="msg-3">Waiting…</div>
+          </div>
+        </div>
+        <div class="step" id="step-4">
+          <div class="step-icon">4</div>
+          <div class="step-text">
+            <div class="step-label" id="label-4">AI Intelligence Analysis</div>
+            <div class="step-msg" id="msg-4">Waiting…</div>
+          </div>
+        </div>
+        <div class="step" id="step-5">
+          <div class="step-icon">5</div>
+          <div class="step-text">
+            <div class="step-label" id="label-5">Generating PDF Report</div>
+            <div class="step-msg" id="msg-5">Waiting…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="result-section">
+      <div class="result-box">
+        <p>✓ Extraction Complete!</p>
+        <small id="result-meta"></small>
+        <a id="downloadLink" class="btn-download" href="#" download>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download PDF Report
+        </a>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-section">
+      <div class="error-box">
+        <strong>Something went wrong</strong>
+        <span id="errorMsg"></span>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>Gravity Extractor &mdash; powered by Gemini AI</footer>
+
+<script>
+  // ─── Tab switching ─────────────────────────────────────────────────────────
+  let activeTab = 'url';
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-url').classList.toggle('active', tab === 'url');
+    document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
+    document.getElementById('urlForm').style.display    = tab === 'url'    ? '' : 'none';
+    document.getElementById('uploadForm').style.display = tab === 'upload' ? '' : 'none';
+    resetUI();
+  }
+
+  // ─── File input / drag-and-drop ───────────────────────────────────────────
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileList  = document.getElementById('fileList');
+  let selectedFiles = [];
+
+  fileInput.addEventListener('change', () => addFiles(Array.from(fileInput.files)));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    addFiles(Array.from(e.dataTransfer.files));
+  });
+
+  function addFiles(incoming) {
+    const allowed = /\.(pdf|doc|docx|xls|xlsx|zip)$/i;
+    incoming.forEach(f => {
+      if (!allowed.test(f.name)) return;
+      if (!selectedFiles.find(x => x.name === f.name && x.size === f.size)) {
+        selectedFiles.push(f);
+      }
+    });
+    renderFileList();
+    // reset input so same file can be re-added after removal
+    fileInput.value = '';
+  }
+
+  function removeFile(idx) {
+    selectedFiles.splice(idx, 1);
+    renderFileList();
+  }
+
+  function renderFileList() {
+    fileList.innerHTML = selectedFiles.map((f, i) => `
+      <div class="file-chip">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span title="${f.name}">${f.name}</span>
+        <button type="button" onclick="removeFile(${i})" title="Remove">✕</button>
+      </div>`).join('');
+  }
+
+  // ─── URL form ──────────────────────────────────────────────────────────────
+  document.getElementById('urlForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const url = document.getElementById('tenderUrl').value.trim();
+    if (!url) return showError('Tender URL is required.');
+
+    const btn = document.getElementById('urlSubmitBtn');
+    setUrlStepLabels();
+    startUI(btn);
+
+    const params = { url };
+    const key = document.getElementById('geminiKey').value.trim();
+    if (key) params.apiKey = key;
+
+    const es = new EventSource(`/api/extract?${new URLSearchParams(params)}`);
+    attachSSE(es, btn, `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Analyse Tender`);
+  });
+
+  // ─── Upload form ───────────────────────────────────────────────────────────
+  document.getElementById('uploadForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (selectedFiles.length === 0) return showError('Please select at least one document.');
+
+    const btn = document.getElementById('uploadSubmitBtn');
+    setUploadStepLabels();
+    startUI(btn);
+
+    try {
+      // Step 1: POST files to /api/upload
+      const formData = new FormData();
+      selectedFiles.forEach(f => formData.append('files', f));
+
+      setStepActive(1, 'Uploading file(s) to server…');
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok || !data.jobId) throw new Error(data.error || 'Upload failed.');
+
+      markStepDone(1);
+      setStepActive(2, 'Files received — starting analysis…');
+
+      // Step 2: SSE for extraction progress
+      const sseParams = { id: data.jobId };
+      const key = document.getElementById('geminiKey').value.trim();
+      if (key) sseParams.apiKey = key;
+
+      const es = new EventSource(`/api/extract-upload?${new URLSearchParams(sseParams)}`);
+      attachSSE(es, btn, `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Analyse Document`, selectedFiles.length);
+
+    } catch (err) {
+      showError(err.message || 'Upload failed.');
+      resetBtn(document.getElementById('uploadSubmitBtn'), `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Analyse Document`);
+    }
+  });
+
+  // ─── Shared SSE handler ────────────────────────────────────────────────────
+  function attachSSE(es, btn, idleLabel, docsOverride) {
+    es.addEventListener('progress', ev => {
+      const { step, message } = JSON.parse(ev.data);
+      setStepActive(step, message);
+    });
+
+    es.addEventListener('done', ev => {
+      const { pdfUrl, docsFound } = JSON.parse(ev.data);
+      es.close();
+      markAllDone();
+      document.getElementById('result-section').style.display = 'block';
+      document.getElementById('result-meta').textContent =
+        `${docsOverride ?? docsFound} document(s) processed · Report ready for download`;
+      document.getElementById('downloadLink').href = pdfUrl;
+      resetBtn(btn, idleLabel);
+    });
+
+    es.addEventListener('error', ev => {
+      es.close();
+      let msg = 'Connection lost or server error.';
+      try { msg = JSON.parse(ev.data).message || msg; } catch (_) {}
+      showError(msg);
+      resetBtn(btn, idleLabel);
+    });
+
+    es.onerror = () => { if (es.readyState !== EventSource.CLOSED) es.close(); };
+  }
+
+  // ─── Step label sets ───────────────────────────────────────────────────────
+  function setUrlStepLabels() {
+    document.getElementById('label-1').textContent = 'Scraping Tender Page';
+    document.getElementById('label-2').textContent = 'Downloading Documents';
+    document.getElementById('label-3').textContent = 'Extracting Document Text';
+    document.getElementById('label-4').textContent = 'AI Intelligence Analysis';
+    document.getElementById('label-5').textContent = 'Generating PDF Report';
+  }
+
+  function setUploadStepLabels() {
+    document.getElementById('label-1').textContent = 'Uploading File(s)';
+    document.getElementById('label-2').textContent = 'Files Received';
+    document.getElementById('label-3').textContent = 'Extracting Document Text';
+    document.getElementById('label-4').textContent = 'AI Intelligence Analysis';
+    document.getElementById('label-5').textContent = 'Generating PDF Report';
+  }
+
+  // ─── UI helpers ───────────────────────────────────────────────────────────
+  let activeStep = 0;
+
+  function startUI(btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Processing…';
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('result-section').style.display   = 'none';
+    document.getElementById('error-section').style.display    = 'none';
+    resetSteps();
+  }
+
+  function resetUI() {
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('result-section').style.display   = 'none';
+    document.getElementById('error-section').style.display    = 'none';
+  }
+
+  function resetSteps() {
+    activeStep = 0;
+    for (let i = 1; i <= 5; i++) {
+      const el   = document.getElementById(`step-${i}`);
+      const icon = el.querySelector('.step-icon');
+      el.className = 'step';
+      icon.textContent = i;
+      document.getElementById(`msg-${i}`).textContent = 'Waiting…';
+    }
+  }
+
+  function setStepActive(step, message) {
+    for (let i = 1; i < step; i++) markStepDone(i);
+    const el   = document.getElementById(`step-${step}`);
+    const icon = el.querySelector('.step-icon');
+    el.className = 'step active';
+    icon.innerHTML = '<span class="spinner"></span>';
+    document.getElementById(`msg-${step}`).textContent = message;
+    activeStep = step;
+  }
+
+  function markStepDone(step) {
+    const el = document.getElementById(`step-${step}`);
+    if (!el || el.classList.contains('done')) return;
+    el.className = 'step done';
+    el.querySelector('.step-icon').innerHTML = '✓';
+  }
+
+  function markAllDone() { for (let i = 1; i <= 5; i++) markStepDone(i); }
+
+  function resetBtn(btn, label) {
+    btn.disabled = false;
+    btn.innerHTML = label;
+  }
+
+  function showError(msg) {
+    document.getElementById('error-section').style.display = 'block';
+    document.getElementById('errorMsg').textContent = msg;
+    if (activeStep) {
+      const el = document.getElementById(`step-${activeStep}`);
+      el.className = 'step error';
+      el.querySelector('.step-icon').textContent = '✗';
+    }
+  }
+</script>
+</body>
+</html>
