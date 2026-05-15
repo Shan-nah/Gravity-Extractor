@@ -14,7 +14,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 
 const app = express();
-const PORT = 5002;
+const PORT = process.env.PORT || 5002;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -30,8 +30,17 @@ function sseWrite(res, event, data) {
 }
 
 // ─── Key loading ──────────────────────────────────────────────────────────────
+// Keys are read from (in order of priority):
+//   1. GEMINI_API_KEY environment variable (set this in Railway/Render dashboard)
+//   2. keys.txt file (local development)
 
 let GEMINI_KEYS = [];
+
+if (process.env.GEMINI_API_KEY) {
+  const envKeys = process.env.GEMINI_API_KEY.split(',').map(k => k.trim()).filter(k => k.startsWith('AIza'));
+  GEMINI_KEYS = [...new Set(envKeys)];
+  console.log(`Loaded ${GEMINI_KEYS.length} Gemini key(s) from environment.`);
+}
 
 const keysFilePath = path.join(__dirname, 'keys.txt');
 if (fs.existsSync(keysFilePath)) {
@@ -39,8 +48,8 @@ if (fs.existsSync(keysFilePath)) {
     const lines = fs.readFileSync(keysFilePath, 'utf8').split('\n').map(k => k.trim());
     const geminiLines = lines.filter(k => k.startsWith('AIza'));
     if (geminiLines.length > 0) {
-      GEMINI_KEYS = [...new Set(geminiLines)];
-      console.log(`Loaded ${GEMINI_KEYS.length} Gemini key(s).`);
+      GEMINI_KEYS = [...new Set([...GEMINI_KEYS, ...geminiLines])];
+      console.log(`Loaded ${geminiLines.length} Gemini key(s) from keys.txt.`);
     }
   } catch (err) {
     console.error('Failed to read keys.txt:', err.message);
