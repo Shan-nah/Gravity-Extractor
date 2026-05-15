@@ -340,10 +340,9 @@ async function extractTextFromDocuments(files) {
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-2.0-flash-lite',
 ];
 
 const EXTRACTION_PROMPT = `You are a tender intelligence analyst. Read every document and produce a concise briefing for a contractor deciding whether to bid.
