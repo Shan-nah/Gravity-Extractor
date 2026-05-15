@@ -340,11 +340,12 @@ async function extractTextFromDocuments(files) {
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-3.0-flash',        // Gemini 3 Flash — primary
-  'gemini-2.5-flash',        // Gemini 2.5 Flash — fallback
+  'gemini-3.0-flash',        // Gemini 3 Flash (try this ID first)
+  'gemini-3-flash',          // Gemini 3 Flash (alternate ID)
+  'gemini-2.5-flash',        // Gemini 2.5 Flash — confirmed working
   'gemini-3.1-flash-lite',   // Gemini 3.1 Flash Lite
-  'gemini-2.5-flash-lite',   // Gemini 2.5 Flash Lite
-  'gemma-4-26b-a4b-it',      // Gemma 4 26B — last resort
+  'gemini-2.5-flash-lite',   // Gemini 2.5 Flash Lite (try this ID)
+  'gemini-2.5-flash-8b',     // Gemini 2.5 Flash Lite (alternate ID)
 ];
 
 const EXTRACTION_PROMPT = `You are a tender intelligence analyst. Read every document and produce a concise briefing for a contractor deciding whether to bid.
@@ -378,18 +379,20 @@ async function geminiCall(apiKey, modelName, prompt) {
 }
 
 async function processWithGemini(apiKey, pageText, docTexts, url, pageTitle) {
-  // Build full combined content — NO truncation
   const buildCombined = (page, docs) => [
-    `SOURCE: Web Page (${pageTitle || url})\nTEXT:\n${page}`,
+    page ? `SOURCE: Web Page (${pageTitle || url})\nTEXT:\n${page}` : null,
     ...docs.map(d => `SOURCE: Document "${d.name}"\nTEXT:\n${d.text}`)
-  ].join('\n\n---\n\n');
+  ].filter(Boolean).join('\n\n---\n\n');
 
   const fullCombined = buildCombined(pageText, docTexts);
   const charCount = fullCombined.length;
-  const approxTokens = Math.round(charCount / 4);
-  console.log(`  [Gemini] Total input: ${charCount.toLocaleString()} chars (~${approxTokens.toLocaleString()} tokens)`);
+  console.log(`  [Gemini] Total input: ${charCount.toLocaleString()} chars (~${Math.round(charCount / 4).toLocaleString()} tokens)`);
 
-  const SAFETY_LIMIT = 3_500_000; // ~875K tokens — near Gemini's 1M limit
+  // Gemma 4 has a 262K token limit (~1M chars). We chunk at 500K chars (~125K tokens)
+  // to leave comfortable headroom for the prompt itself.
+  const CHUNK_SIZE = 500_000;
+
+  const rawExtractPrompt = `${EXTRACTION_PROMPT}\n\nThis is a partial extraction pass — extract every fact, figure, date, and number you find. Do not produce a final formatted report yet.\n\nRAW CONTENT:\n`;
 
   let lastError = null;
 
@@ -397,35 +400,38 @@ async function processWithGemini(apiKey, pageText, docTexts, url, pageTitle) {
     try {
       console.log(`  [Gemini] Attempting with model: ${modelName}…`);
 
-      if (charCount <= SAFETY_LIMIT) {
-        // Single-pass extraction (the normal case)
+      if (charCount <= CHUNK_SIZE) {
+        // Single-pass — content fits in one call
         const prompt = `${EXTRACTION_PROMPT}\n\nRAW CONTENT:\n${fullCombined}`;
         const report = await geminiCall(apiKey, modelName, prompt);
         console.log(`  [Gemini] Extraction complete (${modelName}).`);
         return report;
       }
 
-      // Safety valve: split docTexts in half, two extraction passes + one merge
-      console.log(`  [Gemini] Input exceeds ${SAFETY_LIMIT.toLocaleString()} chars — using two-pass extraction.`);
-      const midpoint = Math.floor(docTexts.length / 2);
-      const docsA = docTexts.slice(0, midpoint);
-      const docsB = docTexts.slice(midpoint);
+      // Multi-pass chunking — split content into CHUNK_SIZE pieces
+      const chunks = [];
+      for (let start = 0; start < fullCombined.length; start += CHUNK_SIZE) {
+        chunks.push(fullCombined.slice(start, start + CHUNK_SIZE));
+      }
+      console.log(`  [Gemini] Content too large — splitting into ${chunks.length} chunk(s) of ~${Math.round(CHUNK_SIZE / 1000)}K chars each.`);
 
-      const combinedA = buildCombined(pageText, docsA);
-      const combinedB = buildCombined('', docsB);
+      const extractions = [];
+      for (let i = 0; i < chunks.length; i++) {
+        console.log(`  [Gemini] Pass ${i + 1}/${chunks.length}: extracting chunk…`);
+        const extraction = await geminiCall(apiKey, modelName, rawExtractPrompt + chunks[i]);
+        extractions.push(extraction);
+      }
 
-      const rawExtractPrompt = `${EXTRACTION_PROMPT}\n\nThis is a partial extraction pass — extract all facts, figures, and dates you find. Do not produce a final report yet.\n\nRAW CONTENT:\n`;
+      // Merge all chunk extractions into a final report
+      let merged = extractions[0];
+      for (let i = 1; i < extractions.length; i++) {
+        console.log(`  [Gemini] Merging chunk ${i + 1} into report…`);
+        const mergePrompt = `${EXTRACTION_PROMPT}\n\nMerge the two partial extractions below into one final concise report. Prefer more specific or larger values when the same field appears in both. No data loss.\n\nPART 1:\n${merged}\n\nPART 2:\n${extractions[i]}`;
+        merged = await geminiCall(apiKey, modelName, mergePrompt);
+      }
 
-      console.log(`  [Gemini] Pass 1/3: extracting from ${docsA.length} doc(s)…`);
-      const extractA = await geminiCall(apiKey, modelName, rawExtractPrompt + combinedA);
-      console.log(`  [Gemini] Pass 2/3: extracting from ${docsB.length} doc(s)…`);
-      const extractB = await geminiCall(apiKey, modelName, rawExtractPrompt + combinedB);
-
-      const mergePrompt = `${EXTRACTION_PROMPT}\n\nMerge the two partial extractions below into one final concise report. When the same field appears in both, prefer the more specific or larger value. No data loss.\n\nPART 1:\n${extractA}\n\nPART 2:\n${extractB}`;
-      console.log(`  [Gemini] Pass 3/3: merging into final report…`);
-      const report = await geminiCall(apiKey, modelName, mergePrompt);
-      console.log(`  [Gemini] Two-pass extraction complete (${modelName}).`);
-      return report;
+      console.log(`  [Gemini] Multi-pass extraction complete (${modelName}, ${chunks.length} chunk(s)).`);
+      return merged;
 
     } catch (err) {
       console.warn(`  [Gemini] Model ${modelName} failed: ${err.message}`);
