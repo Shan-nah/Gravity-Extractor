@@ -340,12 +340,14 @@ async function extractTextFromDocuments(files) {
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-3.0-flash',        // Gemini 3 Flash (try this ID first)
-  'gemini-3-flash',          // Gemini 3 Flash (alternate ID)
-  'gemini-2.5-flash',        // Gemini 2.5 Flash — confirmed working
-  'gemini-3.1-flash-lite',   // Gemini 3.1 Flash Lite
-  'gemini-2.5-flash-lite',   // Gemini 2.5 Flash Lite (try this ID)
-  'gemini-2.5-flash-8b',     // Gemini 2.5 Flash Lite (alternate ID)
+  'gemini-2.5-flash',         // confirmed working, 1M token context
+  'gemini-2.5-pro',           // most capable
+  'gemini-3-flash-preview',   // newer preview
+  'gemini-3.1-flash-lite',    // newest lite
+  'gemini-2.0-flash',         // previous gen stable
+  'gemini-2.5-flash-lite',    // lightest Gemini fallback
+  'gemma-4-26b-a4b-it',       // Gemma 4 26B (262K token limit — chunking handles this)
+  'gemma-4-31b-it',           // Gemma 4 31B
 ];
 
 const EXTRACTION_PROMPT = `You are a tender intelligence analyst. Read every document and produce a concise briefing for a contractor deciding whether to bid.
@@ -388,9 +390,9 @@ async function processWithGemini(apiKey, pageText, docTexts, url, pageTitle) {
   const charCount = fullCombined.length;
   console.log(`  [Gemini] Total input: ${charCount.toLocaleString()} chars (~${Math.round(charCount / 4).toLocaleString()} tokens)`);
 
-  // Gemma 4 has a 262K token limit (~1M chars). We chunk at 500K chars (~125K tokens)
-  // to leave comfortable headroom for the prompt itself.
-  const CHUNK_SIZE = 500_000;
+  // Gemini 2.5 Flash supports 1M tokens (~4M chars). Chunk at 3M chars to leave
+  // headroom for the prompt and ensure the merge pass also fits comfortably.
+  const CHUNK_SIZE = 3_000_000;
 
   const rawExtractPrompt = `${EXTRACTION_PROMPT}\n\nThis is a partial extraction pass — extract every fact, figure, date, and number you find. Do not produce a final formatted report yet.\n\nRAW CONTENT:\n`;
 
