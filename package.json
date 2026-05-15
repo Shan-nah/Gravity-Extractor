@@ -4,7 +4,9 @@
   "description": "Tender document extractor using Gemini AI",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -17,5 +19,8 @@
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.15.0",
     "puppeteer": "^24.43.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.91.0"
   }
 }
