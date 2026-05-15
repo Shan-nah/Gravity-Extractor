@@ -340,14 +340,11 @@ async function extractTextFromDocuments(files) {
 // ─── Gemini ───────────────────────────────────────────────────────────────────
 
 const GEMINI_MODELS = [
-  'gemini-2.5-flash',         // confirmed working, 1M token context
-  'gemini-2.5-pro',           // most capable
-  'gemini-3-flash-preview',   // newer preview
-  'gemini-3.1-flash-lite',    // newest lite
-  'gemini-2.0-flash',         // previous gen stable
-  'gemini-2.5-flash-lite',    // lightest Gemini fallback
-  'gemma-4-26b-a4b-it',       // Gemma 4 26B (262K token limit — chunking handles this)
-  'gemma-4-31b-it',           // Gemma 4 31B
+  'gemini-2.5-flash',      // primary
+  'gemini-2.5-flash-lite', // fallback
+  'gemini-3.1-flash-lite', // fallback
+  'gemma-4-26b-a4b-it',    // last resort
+  'gemma-4-31b-it',        // last resort
 ];
 
 const EXTRACTION_PROMPT = `You are a tender intelligence analyst. Read every document and produce a concise briefing for a contractor deciding whether to bid.
@@ -390,9 +387,9 @@ async function processWithGemini(apiKey, pageText, docTexts, url, pageTitle) {
   const charCount = fullCombined.length;
   console.log(`  [Gemini] Total input: ${charCount.toLocaleString()} chars (~${Math.round(charCount / 4).toLocaleString()} tokens)`);
 
-  // Gemini 2.5 Flash supports 1M tokens (~4M chars). Chunk at 3M chars to leave
-  // headroom for the prompt and ensure the merge pass also fits comfortably.
-  const CHUNK_SIZE = 3_000_000;
+  // 500K chars ≈ 125K tokens — safely within Gemma's 262K limit and
+  // well within Gemini's 1M token limit. Larger docs get split into chunks.
+  const CHUNK_SIZE = 500_000;
 
   const rawExtractPrompt = `${EXTRACTION_PROMPT}\n\nThis is a partial extraction pass — extract every fact, figure, date, and number you find. Do not produce a final formatted report yet.\n\nRAW CONTENT:\n`;
 
