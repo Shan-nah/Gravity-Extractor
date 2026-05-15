@@ -73,7 +73,11 @@ app.get('/api/extract', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
+
+  // Keepalive ping every 20s — prevents Railway/proxy from closing idle SSE connections
+  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 20000);
 
   const tempFiles = [];
 
@@ -112,6 +116,7 @@ app.get('/api/extract', async (req, res) => {
     console.error('Error:', err);
     sseWrite(res, 'error', { message: err.message || 'Unknown error' });
   } finally {
+    clearInterval(keepalive);
     for (const f of tempFiles) {
       try { await fsp.unlink(f); } catch (_) {}
     }
@@ -169,7 +174,10 @@ app.get('/api/extract-upload', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
+
+  const keepalive = setInterval(() => res.write(': keepalive\n\n'), 20000);
 
   try {
     sseWrite(res, 'progress', { step: 1, message: `${files.length} file(s) received — ready to process.` });
@@ -197,6 +205,7 @@ app.get('/api/extract-upload', async (req, res) => {
     console.error('Upload extraction error:', err);
     sseWrite(res, 'error', { message: err.message || 'Unknown error' });
   } finally {
+    clearInterval(keepalive);
     files.forEach(f => fsp.unlink(f.path).catch(() => {}));
     res.end();
   }
